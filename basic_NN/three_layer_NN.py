@@ -42,9 +42,12 @@ print("\n")
 
 ## 2층에서 출력층으로 : 활성화 함수가 다름!
 
+
 # 항등함수
 def identity_function(x):
     return x
+
+
 
 W3 = np.array([[0.1,0.3],[0.2,0.4]])
 B3 = np.array([0.1,0.2])

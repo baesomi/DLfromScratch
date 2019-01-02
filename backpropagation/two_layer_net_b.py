@@ -1,20 +1,9 @@
-import sys, os
-import numpy as np
-sys.path.append(os.pardir)
+from backpropagation.layer_naive import *
 from train_NN.gradient_2d import numerical_gradient
-from basic_NN.sigmoid_func import sigmoid
-from basic_NN.softmax_func import softmax,cross_entropy_error
+from collections import OrderedDict
 
 
-class TwoLayerNet:
-
-
-    '''
-     가중치 초기화
-     @:param input_size : 입력층의 뉴런수
-     @:param hidden_size : 은닉층의 뉴런수
-     @:param output_size : 출력층의 뉴런수
-    '''
+class TwoLayerNetB:
     def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01):
         # params : 매개변수를 보관하는 딕셔너리 변수
         self.params = {}
@@ -25,30 +14,33 @@ class TwoLayerNet:
         self.params['W2'] = weight_init_std * np.random.randn(hidden_size, output_size)
         self.params['b2'] = np.zeros(output_size)
 
+        # 계층생성
+        self.layers = OrderedDict() # 만들어진 계층 순서대로 호출되도록
+        self.layers['Affine1'] = Affine(self.params['W1'], self.params['b1'])
+        self.layers['Relu1'] = Relu()
+
+        self.layers['Affine2'] = Affine(self.params['W2'], self.params['b2'])
+        self.lastLayer = SoftmaxWithLoss()
 
     def predict(self, x):
-        W1, W2 = self.params['W1'], self.params['W2']
-        b1, b2 = self.params['b1'], self.params['b2']
+        for layer in self.layers.values():
+            x = layer.forward(x)
 
-        a1 = np.dot(x, W1) + b1
-        z1 = sigmoid(a1)
-        a2 = np.dot(z1, W2) + b2
-        y = softmax(a2)
+        return x
 
-        return y
-
-    # 예측결과와 정답 레이블을 바탕으로 교차엔트로피 오차를 구하도록
     def loss(self, x, t):
         y = self.predict(x)
-        return cross_entropy_error(y, t)
+        return self.lastLayer.forward(y, t)
 
 
     def accuracy(self, x, t):
         y = self.predict(x)
         y = np.argmax(y, axis=1)
-        t = np.argmax(t, axis=1)
+        if t.ndim != 1:
+            t = np.argmax(t, axis=1)
 
         accuracy = np.sum(y == t) / float(x.shape[0])
+
         return accuracy
 
     # x : 입력데이터, t: 정답 레이블
@@ -68,32 +60,25 @@ class TwoLayerNet:
 
         return grads
 
+    # 기울기
+    def gradient(self, x, t):
+        # 순전파
+        self.loss(x,t)
 
+        # 역전파
+        dout = 1
+        dout = self.lastLayer.backward(dout)
 
+        layers = list(self.layers.values())
+        layers.reverse()
+        for layer in layers:
+            dout = layer.backward(dout)
 
+        # 결과 저장
+        grads = {}
+        grads['W1'] = self.layers['Affine1'].dW
+        grads['b1'] = self.layers['Affine1'].db
+        grads['W2'] = self.layers['Affine2'].dW
+        grads['b2'] = self.layers['Affine2'].db
 
-'''
-net = TwoLayerNet(input_size=784,  hidden_size=100, output_size=10)
-
-net.params['W1'].shape #(784,100)
-net.params['b1'].shape #(100,1)
-net.params['W2'].shape #(100,10)
-net.params['b2'].shape #(10,)
-
-# 예측 처리
-x = np.random.rand(100,784) # 미니배치 100장
-y = net.predict(x)
-
-#기울기 구하기
-
-x = np.random.rand(100, 784) # 더미 입력 데이터
-t = np.random.rand(100, 10)  # 더미 정답 레이블
-
-grads = net.numerical_gradient(x, t) # 기울기 계산
-
-grads['W1'].shape #(784,100)
-grads['b1'].shape #(100,1)
-grads['W2'].shape #(100,10)
-grads['b2'].shape #(10,)
-
-'''
+        return grads
